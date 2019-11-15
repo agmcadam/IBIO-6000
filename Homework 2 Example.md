@@ -1,21 +1,3 @@
----
-title: 'Homework #2 Sample Answers'
-author: "Andrew McAdam"
-date: '2019-02-04'
-output: pdf_document
-fig_caption: true
----
-
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-
-\tableofcontents  
-```{r packages, echo=F, message=FALSE}
-
-```
-
 This is an example R Markdown file for Homework #2 in the IBIO*6000 class
 
 # Instructions for Implementing the Assignment
