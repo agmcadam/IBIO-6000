@@ -1,0 +1,164 @@
+---
+title: "Ratio Variables"
+author: "Andrew McAdam"
+date: '2019-02-04'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\tableofcontents  
+```{r packages, echo=F, message=FALSE}
+
+```
+
+# The Problems
+
+Anytime you analyze a proportion, percentage or ratio variable as your response variable you are making some implicit assumptions that you might now be aware of!  These assumptions can lead to some serious errors.  So anytime you are tempted to analyze a ratio response variable (e.g., percent wet mass, captch per unit effort, etc) you should read through this document carefully!
+
+I will use as an example a study by Packard and Boardman (1988).  The paper is posted on CourseLink and they provided a dataset in this paper that is useful as an example.
+
+```{r}
+painted<-read.table("data/painted.csv", sep=",", header=T)
+painted$Group<-factor(painted$Group)
+summary (painted)
+```
+
+ The goal of this study was to determine the effect of incubation humidity level (Group) on the water content of various organs (CarcassWater) in hatchling painted turtles, but the amount of water in the carcass is going to be influenced by the size of the hatchling turtle (CarcassMass).  So you might be tempted to analyze these data by calculating the % water of the carcass (i.e., CarcassWater/CarcassMass*100) and to compare these percentages between the groups.
+
+```{r}
+turtle.lm<-lm((CarcassWater/CarcassMass*100)~Group, data=painted)
+summary (turtle.lm)
+```
+
+There are several problems with this approach.  One is that a proportion is typically not normally distributed, especially when the proportion approaches 1 or 0.  This can usually be accomodated by transformation or by using models that don't depend on normal errors.  A more serious concern is that there is variation in the denominator (CarcassMass) and this variable may have responded to the treatment as well as the numerator, which is of primary interest.  If the ratio depends on the value of the denominator, then the results could be confounded by the fact that the simple ratio does not adequately correct for the influence of carcass mass.
+
+```{r}
+plot(turtle.lm)
+```
+
+
+
+```{r}
+plot(painted$Group, resid(turtle.lm))
+```
+
+```{r}
+hist(resid(turtle.lm))
+```
+
+More specifically analyzing a ratio as a response implicitly assumes that the ratio is isometric.  That is to say that the proportional change in CarcassWater is associated with a proportional change in CarcassMass or alternatively that the % water is independent of CarcassMass.
+
+ 
+# One Solution: ANCOVA
+A more appropriate approach to dealing with ratio responses is to instead use ANCOVA-like linear models
+
+```{r}
+turtle.lm2<-lm(CarcassWater~CarcassMass+Group+CarcassMass:Group, data=painted)
+summary (turtle.lm2)
+```
+
+
+In this case we test a series of hypotheses.  First we test whether there is a difference between the groups in the relationship between CarcassWater and CarcassMass from the interaction term.
+
+We can conclude from the above summary statement that this relationship does not differ between groups.  We can therefore fit a model that assumes a common slope.
+
+```{r}
+turtle.lm3<-lm(CarcassWater~CarcassMass+Group, data=painted)
+summary (turtle.lm3)
+```
+
+So there is indeed an effect of CarcassMass on CarcassWater as was initially suspected but once this is accounted for there in NO EFFECT of the treatment groups!!!  This is a very different result from what we found previously.  The reason for this is that CarcassWater and CarcassMass are not related isometrically to one another.  That is THE % water IS NOT INDEPENDENT OF CARCASSMASS (the denominator) but instead is positively related to CarcassMass
+
+ It will be helpful to look at a few plots here
+
+```{r}
+plot(painted$CarcassMass, painted$CarcassWater, pch=as.numeric(painted$Group))
+```
+
+
+
+You can see from this plot that the points all fall along the same line and that there is clearly no effect of Group on the relationship.  However, because the relationship is not isometric there was a difference found in the % water.
+
+ We can visualize the isometry relationship by...
+ 
+```{r}
+plot(CarcassWater/CarcassMass*100~CarcassMass, data=painted, pch=as.numeric(Group), ylab="%water")
+```
+
+So the ratio is clearly not independent of the denominator!!!!  The treatment effect on the ratio is confounded by the fact that there is still some of the treatment effect on the denominator that has not been accounted for by our simply % calculation.  That is the ratio does not entirely account for the thing that it was supposed to account for!
+
+Packard and Boardman's ANCOVA approach correctly adjusts for the effect of CarcassMass on CarcassWater.
+
+```{r}
+plot(turtle.lm3)
+```
+
+```{r}
+ hist(resid(turtle.lm3))
+```
+
+```{r}
+plot(painted$Group, resid(turtle.lm3))
+```
+
+The residuals of this model are still not great though.
+
+# A Better Solution: Power Law Models
+We can further improve on Packard and Boardman's approach by recognizing that these two measures are related allometrically.  As a result we can use a Power Law model to analyze these same data in a more transparent way.  Recall that the Power Law equation is $Y=Ax^b$, which can be linearized by log transforming both sides of the equation: $$log(y)=a + b log(x),$$
+where a = log(A).
+
+```{r}
+turtle.lm4<-lm(log(CarcassWater)~log(CarcassMass)+Group+log(CarcassMass):Group, data=painted)
+summary (turtle.lm4)
+```
+
+Again the interaction is not significant so the relationship is the same in both groups.  We can remove it and analyze the simpler model in which there is a common slope in the two groups.
+
+```{r}
+turtle.lm5<-lm(log(CarcassWater)~log(CarcassMass)+Group, data=painted)
+summary (turtle.lm5)
+```
+
+Our interpretation of the results are the same as above, but this approach has an added benefit.  In this approach the slope above (1.066) has some added information and can be used to test against some interesting theoretical expectations.  Recall that the Power Law model is: $$CarcassWater=A*CarcassMass^b$$
+
+These results indicate that $log(CarcassWater)= -0.33 + 1.066log(CarcassMass)+0.012(Group2?),$ which can be back-transformed to the nonlinear form as:
+ 
+  $$CarcassWater=exp(-0.33+0.012(Group2?))*CarcassMass^{1.066}$$
+
+This is useful because we can examine the relationship between the proportion of water and the CarcassMass
+
+ $$CarcassWater/CarcassMass = exp(-0.33+0.012(Group2?))*CarcassMass^{0.066}$$
+
+Note that the slope (b) above is slightly greater than zero (0.066) so the proportion of water is positively associated with CarcassMass.  If this adjusted slope was equal to zero then the proportion of water would be indepedent of CarcassMass (i.e. a constant) and the relationship would be isometric.  This would mean that it would be ok to simply compare the proportion between groups (but note the problems with the residuls).
+
+Note that the effects of Group on the proportion is also clear in this notation!  Some people worry about losing this information because the proportion has some common interpretation (e.g., catch per unit effort).
+
+The benefit of this approach is that we can directly test the null hypothesis that the proportion does not change with CarcassMass as would be indicated by a slope of one in the original model (zero in the model with the proportion).
+
+ We can put 95% confidence intervals on the slope using:
+
+```{r}
+summary (turtle.lm5)
+```
+
+ 95% CL = slope+/- qt(0.975, df=7)*se
+
+```{r}
+1.06646 +(qt(0.975, df=7)*0.02671)
+```
+
+
+```{r}
+1.06646 -(qt(0.975, df=7)*0.02671)
+```
+
+
+So the 95% CL are (1.003, 1.1296).  The parameter therefore significantly exceeds 1 so the relationship is not isometric.
+
+Note that diagnostic plots still show some problems with this model, but we will not deal with that here.
+
+# Error in X
+Recall that one of our assumptions of a general linear model is that all of the unexplained variation (error) is in the response variable and the predictor variables are measured without error (see the glm document).  In this case we clearly have error in a predictor variable AND we are interested in the value of the slope and not just its significance (i.e. differnce from zero).  So in this case it would likely be important to use a TYPE-II regression to test whether the slope is different from 1.

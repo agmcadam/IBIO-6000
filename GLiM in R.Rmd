@@ -1,0 +1,394 @@
+---
+title: "Generalized Linear Models in R"
+author: "Andrew McAdam"
+date: '2019-03-13'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\tableofcontents  
+```{r packages, echo=F, message=FALSE}
+
+```
+
+# Note
+This document is a work in progress.  In many places it is not as well annotated as I would like, but it's a start!
+
+# Generalized Models
+We have spent a fair amount of time going over general linear models. We now want to extend these to consider situations where we have non-normal error distributions.  We talked about the concepts behind generalized linear models (GLiMs) in class.  Here we will go over how they are implemented and interpreted in R.
+
+There are some additional packages that we will load for GLiMs
+```{r}
+library (gam)
+library (MASS)
+library (boot)
+```
+
+
+We are going to return to the lizard egg data to start with.  I am going to load a new data file.
+```{r}
+egg2<-read.table("data/egg.temp2.csv", sep=",", header=T)
+
+summary (egg2)
+```
+## Meta-Data
+These data were from a captive breeding experiemnt I ran with side-blotched lizards (*Uta stansburiana*) while I was a postdoc at UC Santa Cruz with Barry Sinervo.  Multiple female lizards and one male were housed within a single holding holding area (bin).
+
+You should get used to writing out similar data descriptions in your own Rmd files.  They are very helpful!
+
+* *LayDay* - day of the year (Julian date) on which teh egg was laid.
+
+* *clutch* - whether the clutch was the first, second, third, or fourth clutch of the year.
+
+* *bin* - the housing bin in which the female was raised.  There were more than one female per bin.
+
+* *postlay* - mass of female after she finished laying her eggs (g?).
+
+* *clutch.size* - number of eggs in the clutch.
+
+* *eggcode* - whether or not the egg was miniaturized by removing some yolk.  (C = control; M = miniaturized).
+
+* *eggmass* - mass of the egg (g) when laid.
+
+* *post.eggmass* - mass of the egg (g) after yolk was removed.
+
+* *dam.oby* - throat colour genotype of the mother.
+
+* *hatch* - whether or not the egg successfully hatched (0 = no; 1 = yes).
+
+This datafile is similar to the egg.temp.csv file that we have worked with in the past, but this one also includes a response variable that indicates whether or not the egg hatched (hatch)
+
+Note that about 73% of the eggs hatched
+We will need to change "bin" to a factor
+
+```{r}
+egg2$bin<-factor(egg2$bin)
+```
+
+# Specifying a GLiM in R
+
+We will start with a GLiM to predict whether or not an egg will hatch.  This is a binary response so we will be dealing with a binomial family.  In this case the GLiM is the equivalent of a logistic regression.
+```{r}
+hatch.glm<-glm(hatch~eggcode+LayDay+post.eggmass, family=binomial, data=egg2)
+```
+
+Note that we are using glm instead of lm and we therefore need to specify the family type.  We did not specify a link function so the default "link=logit" is used.
+
+```{r}
+summary (hatch.glm)
+```
+
+Note that this is very similar to what we are used to seeing.  Instead of dealing with variance though we are dealing now with DEVIANCE.  Deviance is defined to be twice the difference between the log-likilihood of the best possible model and the log-likelihood of the current model.  The log-liklihood of the best possible model is based on the variance in yoru response variable.
+
+Also not that we are no longer testing the significance of our parameters based on a t test statistic.  Instead we are now using a Z test statistic.  This test statistic does not have an associated degrees of freedom.  So when you report the significance of a parameter in a GLiM you woudl report b+/-SE, Z and P (no df needed).
+
+The proportion of deviance explained is
+```{r}
+1-1375.4/1455.3
+```
+
+This is the summary command but we can also test the significance of terms rather than parameters using the anova command.
+
+
+```{r}
+anova (hatch.glm, test="Chi")
+```
+
+Note that in this case the terms are assessed from first to last.  The model is assessed in a "Type I" style where the order matters.  This analysis is basically a series of likelihood ratio tests, comparing progressively more complex models.
+
+# Testing Assumptions in GLiMs
+Many of the assumptions of a GLiM are similar to teh assumptions of a glm.  These include:
+
+* Independence of observations - good sampling
+* Correct specification of the variance function
+* Correct specification of the link function
+* Correct form of the explanatory variables - look for nonlinearities
+* Lack of undue influence of individual observations – Cook’s distance
+* Correct specification of the dispersion parameter
+
+## Diagnostic Plots
+Regular diagnostic plots don't help us very much for GLiMs.  
+
+```{r}
+par (mfrow=c(2,2))
+plot (hatch.glm)
+```
+
+Note that the residuals are never going to look very good in a binomial glm.  We are used to using these plots to test for homogeneity in the residulas, but in a GLiM the residuals are never going to appear homogeneous, because the response variable is often very discontinuous.  Nevertheless, we can still use these diagnostics to look at points with high leverage and high residuals (the last plot - Cook's distances).
+
+I recently became aware of a package for assessing diagnostic plots for GLiMs.  More information can be found at: https://theoreticalecology.wordpress.com/2016/08/28/dharma-an-r-package-for-residual-diagnostics-of-glmms/
+
+
+Here is the Vignette:
+https://cran.r-project.org/web/packages/DHARMa/vignettes/DHARMa.html
+
+I will give it a try here.
+```{r}
+#install.packages("DHARMa")
+library (DHARMa)
+
+simulation_output_hatch.glm<-simulateResiduals(fittedModel = hatch.glm, n = 250)
+```
+
+Here we now expect a uniform distribution (flat distribution) of simulated residuals.
+
+We can visualize these simulated residuals using
+```{r}
+plot(simulation_output_hatch.glm)
+```
+
+So the above plot shows no deviation from the expected distribution.  In the plot on the right, 'outliers' are plotted as red stars.  The red lines in the plot on the right should be straight accross and at the values on the y axis of 0.25, 0.5 and 0.75.  These look very good above!!
+
+We should also test whether there is a relationship between the residuals and our specific predictors
+```{r}
+plotResiduals(egg2$LayDay, simulation_output_hatch.glm$scaledResiduals)
+```
+
+This also looks very good.
+
+This package also runs some specific tests, which seem very nice!
+```{r}
+testUniformity(simulation_output_hatch.glm)
+testOutliers(simulation_output_hatch.glm)
+testDispersion(simulation_output_hatch.glm)
+#testZeroinflation(simulation_output_hatch.glm)
+#testGeneric(simulation_output_hatch.glm)
+testTemporalAutocorrelation(simulation_output_hatch.glm)
+testSpatialAutocorrelation(simulation_output_hatch.glm)
+```
+
+## Over-Dispersion
+One important test above is the test for overdispersion.  In a GLiM the error variance is not estimated.  Instead it is fixed at some value based on the variance function that is determined by the assumed distribution.  If your data don't fit this assumed distribution well then the modelk could be over-dispersed (too much unexplained variation) or under-dispersed (too little variation).  Overdispersion can cause your inferences to be overly liberal (too likely to reject the null; p-values are too small) so it is of concern.  There are several possible causes of over-dispersion including:
+
+* unexplained variation - try including an additional predictor to account for this variation.  Sometimes, however, there is nothing you can do.
+
+* structure in the data - if there is a lack of independence in the data this can lead to overdispersion.  Fitting a random effect (see the section on mixed effect models) can sometimes account for this.
+
+* a mis-specified model - perhaps your assumed distriubution is not a good one.
+
+The DHARMa package provides an example of what overdispersion would look like.
+```{r}
+library (lme4)
+testData = createData(sampleSize = 500, overdispersion = 2, family = poisson())
+fittedModel <- glmer(observedResponse ~ Environment1 + (1|group) , family = "poisson", data = testData)
+
+simulationOutput <- simulateResiduals(fittedModel = fittedModel)
+plot(simulationOutput)
+```
+Note that instead of a uniform distribution of simulated residuals they are clustered around zero.
+
+Here is an example of under-dispersion where we have too few residuals around the tail - too many around the value of 0.5
+```{r}
+testData = createData(sampleSize = 500, intercept=0, fixedEffects = 2, overdispersion = 0, family = poisson(), roundPoissonVariance = 0.001, randomEffectVariance = 0)
+fittedModel <- glmer(observedResponse ~ Environment1 + (1|group) , family = "poisson", data = testData)
+
+summary(fittedModel)
+
+simulationOutput <- simulateResiduals(fittedModel = fittedModel)
+plot(simulationOutput)
+```
+
+As far as I can tell this DHARMa package is great for testing these assumptions.
+
+There are, however, some simpler ways to test for over-dispersion.  As a start, we can estimate the amount of dispersion in a model by comparing the resodual df to the residual deviance in a GLiM.  We expect that these ought to be similar.  NOTE that this is just an estimate.
+
+```{r}
+ summary (hatch.glm)
+```
+
+Note the similarity between the residual deviance and the residual df.
+
+When you are looking at the relationship between the residual deviance and the residual df that this is only a reliable measure of overdispersion if n*p (for binomial) is large
+
+```{r}
+length(egg2$hatch)*mean(egg2$hatch)
+```
+This is large
+
+
+We could still get a measure of the dispersion parameter by using the quasi family
+
+```{r}
+hatch.glm4<-glm(hatch~eggcode+LayDay+I(LayDay^2)+post.eggmass, family=quasibinomial, data=egg2, na.action=na.omit)
+
+summary (hatch.glm4)
+```
+
+Note that now the dispersion parameter is estimated rather than assuming that it is 1.  Notice that the estimated parameter is very close to one.
+
+What would a very poorly fit model look like (i.e. the wrong link)?
+
+
+```{r}
+hatch.poor<-glm(post.eggmass~eggcode+I(LayDay^2), family=quasibinomial, data=egg2, na.action=na.omit)
+```
+
+In this case the response variable is normally distributed but we have specified the quasibinomial family
+```{r}
+summary (hatch.poor)
+```
+
+Notice that the model is highly under-dispersed.  This is evident from the residual deviance and df as well as the estimated dispersion parameter.
+
+
+
+
+
+## Nonlinearities
+We should also look for nonlinearities
+
+```{r}
+hatch.gam<-gam(hatch~eggcode+s(LayDay)+s(post.eggmass), family=binomial, data=egg2, na.action=na.omit)
+anova (hatch.gam)
+```
+
+There seems to be strong nonlinear effects for layDay and maybe post-egg mass.  We will try and correct LayDay first and then see if that helps the relationship for posteggmass.  Let's see what the relationship looks like.
+
+The plot.Gam function is good for plotting generalized additive models.  The value on the y axis is the response variable corrected for other terms in the model (this is a partial plot).
+```{r}
+plot.Gam(hatch.gam, se=T, residuals = T)
+```
+
+Note that we seem to have some sort of quadratic effect of LayDate and maybe an outlier for post.eggmass.  I would normally go back and double-check that value but I remember that egg.  It is not a mistake.  We might want to try and run the model without this point just to make sure that our conclusions don't depend on that data point.  The Cook's distance values suggest that the results do not, but we could check.
+
+
+So let's fit a quadratic effect for LayDay
+
+```{r}
+hatch.glm2<-glm(hatch~eggcode+LayDay+I(LayDay^2)+post.eggmass, family=binomial, data=egg2, na.action=na.omit)
+summary (hatch.glm2)
+```
+
+
+Do any non-linearities remain after we consider the quadratic effect?
+```{r}
+hatch.gam2<-gam(hatch~eggcode+s(LayDay)+I(LayDay^2)+s(post.eggmass), family=binomial, data=egg2, na.action=na.omit)
+anova (hatch.gam2)
+
+plot.Gam(hatch.gam2, se=T, residuals = T)
+
+plot(hatch.glm2)
+```
+
+It seems like the nonlinearity for posteggmass is driven by that one point.  We will exclude it and rerun the model. 
+
+
+```{r}
+hatch.glm3<-glm(hatch~eggcode+LayDay+I(LayDay^2)+post.eggmass, family=binomial, data=egg2, na.action=na.omit, subset=-1067)
+```
+
+
+
+We can compare the results of the two models
+
+```{r}
+summary (hatch.glm2)
+summary (hatch.glm3)
+```
+
+There is very little change in the parameters of the model by excluding that point.
+
+# Probit Model
+
+
+Recall our original model:
+```{r}
+hatch.glm<-glm(hatch~eggcode+LayDay+post.eggmass, data=egg2, family=binomial)
+```
+
+In this case we are using the default link function for the binomial family.  This is the "logit" function which converts probabilities into log odds = log(prop/(1-prop)).  An equivalent model would be:
+```{r}
+hatch.glm<-glm(hatch~eggcode+LayDay+post.eggmass, data=egg2, family=binomial(logit))
+```
+
+We could also specify
+```{r}
+hatch.glm<-glm(hatch~eggcode+LayDay+post.eggmass, data=egg2, family=binomial(probit))
+```
+
+I am less familiar with the probit link but apparently these two links will often give similar results except when there are many very high or very low probabilities in which case probit is preferred.
+
+```{r}
+hatch.glm<-glm(hatch~eggcode+LayDay+post.eggmass, data=egg2, family=binomial(logit))
+summary (hatch.glm)
+anova (hatch.glm, test="Chi")
+```
+
+Note that this is the same approach as we used for an lm.  The only difference is that now we are dealing with an F test.  Note that the anova output assesses (in sequence) whether the addition of the next term significantly improves the fit of the model relative to the simpler model in which that term is not yet included.  We can show the sequence of these tests as:
+
+```{r}
+temp1<-glm(hatch~1, data=egg2, family=binomial(logit))
+temp2<-glm(hatch~eggcode, data=egg2, family=binomial(logit))
+temp3<-glm(hatch~eggcode+LayDay, data=egg2, family=binomial(logit))
+temp4<-glm(hatch~eggcode+LayDay+post.eggmass, data=egg2, family=binomial(logit))
+
+anova (hatch.glm, test="Chi")
+
+anova (temp1, temp2, temp3, temp4, test="Chi")
+```
+
+We wouldn't normally do this.  Normally you would use the anova output to assess the significance of the terms in your model with the understanding that this is based on a Type Iish philosophy (i.e. order matters)
+
+
+Note the reminder that terms are ordered from first to last.
+
+# Interpreting parameters in a GLiM
+
+We will start simple
+
+```{r}
+hatch.simple<-glm(hatch~post.eggmass, family=binomial, data=egg2)
+
+summary (hatch.simple)
+```
+
+When you get a predicted value remember that it is on the log-odds scale because of the logit link function.
+
+
+So if we wanted to calculate the predicted probability of survival for an egg that was 0.2g we would first get the predicted value on the log-odds scale. 
+```{r}
+-1.6059+6.5468*0.2
+```
+This is on the log-odds scale.  We can then use a function in the boot package to back-transform this value.  Note that the two colons just specifies that the function inv.logit is located within the boot package.  This notation is not needed, but it can help clarify situations where there are two functions in different packages with the same name.  It also helps to make it more clear to you that this is why I needed to load teh boot package at the start of this document.
+```{r}
+boot::inv.logit(-0.29654)
+```
+
+We can check this against our calculation
+```{r}
+log(0.426/0.564)
+```
+
+Therefore there is about a 43% chance that an egg that is 0.2g will survive until hatching.
+
+We can also plot the predicted values against egg mass
+
+```{r}
+plot(egg2$post.eggmass, predict(hatch.simple, type="link"))
+```
+
+Note that this line has the slope and intercept that is presented in the model summary.  However the logit link function means that these predicted values are not on the original scale that they were measured on.
+
+We can instead get the predicted plot on the original raw scale by specifying type="response".
+```{r}
+plot(egg2$post.eggmass, predict(hatch.simple, type="response"))
+```
+
+
+# Residuals 
+
+With GLiM's there are also 4 different types of residuals
+
+```{r}
+hist(resid(hatch.simple, type="working"))
+hist(resid(hatch.simple, type="response"))
+hist(resid(hatch.simple, type="pearson"))
+hist(resid(hatch.simple, type="deviance"))
+```
+
+Deviance residuals are the best for diagnostic plots.
+
+

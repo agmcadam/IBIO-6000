@@ -1,0 +1,387 @@
+---
+title: "Data Import and Manipulations"
+author: "Andrew McAdam"
+date: '2019-01-15'
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+\tableofcontents  
+```{r packages, echo=F, message=FALSE}
+
+```
+
+
+# Multiple Vectors and Data Frames 
+So far we have been dealing mostly with variables (e.g. "x" and "answer") and vectors (e.g., "one.to.100").  R can also handle matrices just fine and these are important for many calculations but we won't be dealing with them too much here.  Most often you will be dealing with data in data frames.  These are a list of vectors (variables) of the same length that are linked together across rows (replicates).  That is, the data in the first row of each vector is logically linked to the first row of all other vectors because all of these data were collected from the same forest stand, plant, survey respondent or sediment core.  Some of this terminology might be new to you but this is the way you are used to seeing data presented (hopefully!) in spreadsheet programs like Excel.
+
+ We can create a new empty data frame using
+```{r}
+temp<-data.frame()
+temp
+```
+This is a start but it is pretty boring for now since we don't have any data in this data frame.
+Let's make something a little fancier, which is a data frame with three variables (response, pred1 and pred2).  For now we will simply define response to be the numbers 1:10, pred1 will be 2:11 and pred2 will be 3:12.  Note that all three variables MUST be the same length
+
+```{r}
+temp2 <- data.frame(response=1:10,pred1=2:11,pred2=3:12)
+temp2
+```
+Note that I have specified the three columns separated by commas and each column is a vector that is defined to be a sequence of 10 numbers.
+
+# Referencing Elements in a Data Frame
+Note that just like with vectors we can refer to any particular cell in a data frame by referencing its row and column.  We can do this to ask R what the value of a cell is or to change a value of a cell.  So for example we can ask R what the value in our new data frame called "temp2" is in the 4th row and the first column (i.e. "response")
+
+```{r}
+temp2[4,1]
+```
+The notation is [row, column]
+We can change specific values in a data frame using the assignment action:
+
+```{r}
+temp2[4,1]<-45
+temp2
+```
+
+We can also ask R for more than one cell at a time
+```{r}
+temp2[1:5, 1]
+```
+
+This can be read as..."R please return the values in rows one through 5 and the first column only".
+
+ If we don't specify a row or column we get them all
+
+```{r}
+temp2[1:5, ]
+```
+Remember that we still need to include the column component, but we just leave it blank.  We get an error if we use...
+temp2[1:5]
+
+Error in `[.data.frame`(temp2, 1:5) : undefined columns selected
+
+
+
+This would work for a vector though because it only has one dimension
+
+```{r}
+one.to.ten <- 1:10
+one.to.ten[1:5]
+```
+So you can do a lot with data manipulation using R that we wont get into in this class, but you are unlikely to enter data in R.  Instead you will need to import a raw data file. R isn't much fun if you can't get your data imported!
+
+# Importing Data from Excel
+We will start by importing a csv file that is located in the data folder in CourseLink.  Open this file and save it to your working directory.  If you have done this you do not need to specify the entire path name.  I would recommend that you keep your folders organized and include a subfolder called 'data' in your working directory.
+
+```{r}
+part.temp<-read.table("data/PartD2.csv", sep=",", header=T)
+```
+Note that there was no error message!!!
+
+Note that I have included the exact file name (case sensitive) with the proper extension.
+
+I have indicated that the file has a header (header=T).  This is because I have variable names stored in the first row of the datafile.  R needs to know if these are variable names or actual data!
+
+Finally I have indicated that the file is a comma separated file (sep='','').  This is what I always use.
+
+Note that there is a similar function that is not generic to all data types, but is instead specific to .csv files.  It is called read.csv.  This function will tend to have fewer errors when importing data.  In this case you don't need to specify that the separator is ",".
+
+
+```{r}
+part.temp<-read.csv("data/PartD2.csv", header=T)
+```
+
+As before we can view a data file by simply typing its name
+```{r}
+part.temp[1:5, ]
+```
+
+The ``head'' command lists the first few rows of a datafile.
+
+```{r}
+head(part.temp)
+```
+
+IMPORTANT: I have provided you with a copy of the PartD2.csv file so that you can follow along and do exactly what I do in class.  As a general rule these are data (sometimes unpublished) that belong to me or my colleagues.  You are free to play around with the data and to try things out with these data in R.  You are not free to publish results with these data without talking to me first and you are not free to share these data with anyone outside this class.  If someone else wants a copy of the data have them contact me directly.
+
+There are a few other functions that are important for summarizing data.  First we can recall all of the variable names in the data file using
+```{r}
+names (part.temp)
+```
+
+We can get the number of variables in the data file using
+```{r}
+length(part.temp)
+```
+Note this IS NOT the number of observations (or rows) in the data file.  It is the number of variables within the data frame.  If we want the number of rows we need to refer not to the whole dataframe but to a specific variable within the dataframe using the $ symbol.
+
+```{r}
+length(part.temp$GRID)
+```
+
+Or we can get both using
+```{r}
+dim(part.temp)
+```
+
+So there are 1422 rows and 11 columns in the data file
+
+An extremely useful function summarizes the data in the data file
+
+```{r}
+summary (part.temp)
+```
+You will use this one a lot!!!
+
+Note that there is different notation used to summarize different variables.  This is because when we imported the data R automatically assumed that any text variable (i.e. GRID) was a factor and that numerical variables (e.g., Julian) is a continuous variable.  Sometimes this is correct and sometimes I have just used numbers to refer to factors when I could have just as easily used a letter or word (e.g., BR, LN, FOOD).  We can change these into factors using...
+```{r}
+part.temp$LN<-factor(part.temp$LN)
+part.temp$FOOD<-factor(part.temp$FOOD)
+part.temp$Dam<-factor(part.temp$Dam)
+part.temp$BR<-factor(part.temp$BR)
+```
+
+See how things look quite different now.
+```{r}
+summary (part.temp)
+```
+For some variables it isn't entirely clear whether they should be considered continuous or as a factor (e.g., YR, AGE).  So we might want to create a new variable that is a factor but which leaves the original variable intact.
+
+```{r}
+part.temp$YRF<-factor(part.temp$YR)
+part.temp$AGEF<-factor(part.temp$AGE)
+summary (part.temp)
+```
+Note that R interprets missing data as NA
+
+We can ask R about missing data using
+
+```{r}
+is.na(part.temp[561, 4])
+is.na(part.temp[562, 4])
+```
+
+We can also specify the negative to ask whether the value is NOT NA
+
+```{r}
+!is.na(part.temp[562, 4])
+```
+Note that missing data (NA) can cause some functions to not work unless we make some special consideration for them
+
+```{r}
+std<-function(x){
+#This function takes a vector x and standardizes the values within x to a mean of
+#zero and a sd of one
+ (x-mean(x))/sd(x)
+ }
+
+ summary(std(part.temp$AGE))
+```
+We can improve our function so that it doesn't return NA when any of the data are missing.  Instead we can ask it to simply omit those observations from the calculation
+
+```{r}
+ std<-function(x){
+#This function takes a vector x and standardizes the values within x to a mean of
+   #zero and a sd of
+ (x-mean(x, na.rm=T))/sd(x, na.rm=T)
+ }
+
+summary(std(part.temp$AGE))
+```
+
+
+# Subsets 
+We often want to deal with only a subset of a dataset.  For example we might want to look at only the parturition dates before March 1 (Julian date of 60)
+
+```{r}
+part.temp$Julian[part.temp$Julian<60]
+```
+
+Wow there is only one!  What if we wanted to know what year this was in?
+```{r}
+part.temp$YR[part.temp$Julian<60]
+```
+Neat!  We can also get sophisticated and specify more that one criterion at once
+
+```{r}
+part.temp$Julian[part.temp$Julian<90&part.temp$Julian>80]
+```
+Some of the other useful logical terms are , <, ==, <=, & (and), ! (not), != (not equal to), | (or)
+
+Here we have used relational operators within indexing to subset our data, but we can also use the subset command
+
+```{r}
+summary (subset(part.temp, part.temp$YR==1993))
+```
+So this a summary of the part.temp data file, but only for those values that were in year=1993.
+
+It is important to note that when you refer to values of a factor and not a continuous variable you need to specify the text code in quotes.  This tells R that you are referring to a particular text string value for that variable and not some other object.  So for example, if I wanted to restrict the summary to only the GRID called SU, I need to put SU in quotes.
+
+If I type...
+summary (subset(part.temp, part.temp$GRID==SU))
+
+I will get an error...
+Error in eval(expr, envir, enclos) : object 'SU' not found
+
+```{r}
+summary (subset(part.temp, part.temp$GRID=="SU"))
+```
+This is because we could include a variable in there rather than a text string
+
+```{r}
+variable<-"SU"
+summary (subset(part.temp, part.temp$GRID==variable))
+```
+I hope you can see that the reason you need the quotes is because if we had a variable in the workspace called SU and a value for the factor GRID that was SU then it could get quite confusing if we didn't specify which one we were referring to.
+
+We can also get quite fancy in our subsetting
+
+```{r}
+subset1<-part.temp$GRID=="SU"|part.temp$GRID=="KL"&part.temp$YR==1993
+summary (subset(part.temp$Julian, subset1))
+```
+
+Note that this is different from
+```{r}
+subset2<-(part.temp$GRID=="SU"|part.temp$GRID=="KL")&part.temp$YR==1993
+summary (subset(part.temp$Julian,subset2))
+```
+Note how I have used the brackets to control the subsetting.  In the first example I was saying that I want either records of (SU) OR records that are both (KL and 1993).  In the second example I am asking for records that are (either SU or KL) and (1993).  You need to think very carefully about what you are doing with these complex subsets!
+
+# Summarizing By Groups
+We can also summarize data by levels of a factor using the tapply command.  For example we might be interested in the average breeding date of females in each year
+
+```{r}
+tapply(part.temp$Julian, part.temp$YRF, mean)
+```
+
+Or by age
+
+```{r}
+tapply(part.temp$Julian, part.temp$AGEF, mean)
+```
+
+
+# Sourcing Code
+Remember that when we imported the PartD2.csv file we had to convert some of the variables to factors and then create some new variables before we were ready to do interesting things with the data.  If you save your workspace then you don't need to keep importing your data into R each time you restart the program.  But if you do end up importing your data file a lot it would become a bit of a pain to have to retype all that code.  So instead you can write a simple source file that you can simply refer to when you need this to be done. With this approach, you do not rely on saving your workspace every time you close your R session. You would then start each session with a clean working directory, and call your script file with the "source" command.
+
+For an exercise, extract all the data manipulation commands from this document that we needed to reach our final part.temp object, put these in one script file, name this file for instance "part.temp.import.R", close R without saving your workspace, open R again without loading a workspace. Check that you have no objects in your workspace with
+
+ls()
+
+Then load your just created script file with:
+
+source("part.temp.import.R")
+
+# Basic Graphics
+The final thing that I want to do is to provide a brief overview of graphics.  I will try and return to graphics using R as we work our way through the course.  The graphics in R are very powerful but they can be a little daunting at first because you have the ability to change just about every aspect of the graphics.
+
+Basics graphics in R come from the plot function.  To start with we will plot the relationship between food abundance (conestm1) and parturition date (Julian) by individual female red squirrels.  The notation for the plot command is to first provide the variable for the X axis and then the variable for the Y axis. 
+
+```{r}
+plot(part.temp$conestm1, part.temp$Julian)
+```
+
+This is the simplest type of plot, but we can pretty it up a bit by specifying some of the parameters rather than accepting the defaults
+
+First of all we probably want to rename our axis labels since they don't look very good right now
+```{r}
+plot(part.temp$conestm1, part.temp$Julian, xlab="Food abundance",
+ylab="Parturition date")
+```
+
+Those labels are also a bit small so we can make then bigger
+
+```{r}
+plot(part.temp$conestm1, part.temp$Julian, xlab="Food abundance",
+ylab="Parturition date", cex.lab=2)
+```
+
+Maybe that's a bit too big
+
+```{r}
+plot(part.temp$conestm1, part.temp$Julian, xlab="Food abundance",
+ylab="Parturition date", cex.lab=1.5)
+```
+
+Note that the cex stands for character expansion and 2 means 2x as big as the default
+
+We can also change the size of the axes
+
+```{r}
+plot(part.temp$conestm1, part.temp$Julian, xlab="Food abundance",
+ylab="Parturition date", cex.lab=1.5, cex.axis=1.2)
+```
+
+We might want to change the scale of the y axis
+
+```{r}
+plot(part.temp$conestm1, part.temp$Julian, xlab="Food abundance",
+ylab="Parturition date", cex.lab=1.5, cex.axis=1.2, ylim=c(0, 365))
+```
+
+Here the first number is the minimum value whereas the last number is the maximum value.  This doesn't look very good so I don't think we will use this.
+
+Finally we can change the plot character both their type, size and color
+```{r}
+plot(part.temp$conestm1, part.temp$Julian, xlab="Food abundance",
+ylab="Parturition date", cex.lab=1.5, cex.axis=1.2, ylim=c(50, 220),
+pch=19, cex=1.1, col="red")
+```
+
+We can also add a trend line to the plot.  This is done in a slightly different way.  Instead of providing the command within the plot command we specify it afterward and it is applied to the graph that is open.  You can do this in three ways
+
+abline(h=100)
+abline(v=2)
+abline(150, -10)
+where the first value represents the intercept and the second represents the slope.
+
+or
+abline(lm(part.temp$Julian~part.temp$conestm1))
+where R fits the line from the linear model of the effects of cones on breeding date.
+
+
+Note that in the above notation when you are entering these commands into the console while you have an open 'Quartz' plot window then these lines simply get added to the existing open plot.  
+
+To bring it all together we can use:
+```{r}
+plot(part.temp$conestm1, part.temp$Julian, xlab="Food abudnance",
+ylab="Parturition date", cex.lab=1.5, cex.axis=1.2, ylim=c(50, 220),
+pch=19, cex=1.1, col="red")
+abline(lm(part.temp$Julian~part.temp$conestm1))
+```
+
+We can create a series of boxplots in a similar way if the variable on the x axis is a factor
+
+```{r}
+plot(part.temp$YRF, part.temp$Julian)
+```
+
+Here the middle line represents the median, the box is the inter-quartile range, the whiskers extend to the range of the data or 1.5 times the box size from the nearest hinge - whichever is less.  Points beyond this are noted.
+
+We can plot figures side by side on the same page by changing the parameter mfrow.  We will indicate how many rows and columns of figures we want.  This one has one row and two columns.
+
+```{r}
+par(mfrow=c(1,2))
+ plot(part.temp$conestm1, part.temp$Julian, xlab="Food abudnance", ylab="Parturition date", cex.lab=1.5, cex.axis=1.2, ylim=c(50, 220), pch=19, cex=1.1, col="red")
+abline(lm(part.temp$Julian~part.temp$conestm1))
+ plot(part.temp$YRF, part.temp$Julian, xlab="Year", ylab="Parturition date")
+```
+
+We can either save these graphics once they are produced or we can specify a name and format for them in advance.  To do this we turn on the graphics program, create the graphs, then turn it off.
+
+```{r}
+pdf(file="Sept23Fig.pdf")
+ par(mfrow=c(1,2))
+ plot(part.temp$conestm1, part.temp$Julian, xlab="Food abudnance", ylab="Parturition date", cex.lab=1.5, cex.axis=1.2, ylim=c(50, 220), pch=19, cex=1.1, col="red")
+ abline(lm(part.temp$Julian~part.temp$conestm1))
+ plot(part.temp$YRF, part.temp$Julian, xlab="Year", ylab="Parturition date")
+ dev.off()
+```
+Note that no new graphics window has been created now.  Instead This pdf file has been stored in your working directory (not your workspace) and is ready to be submitted for publication!!!!
+
+## ggplot
+All of the figures above were made using base R.  This is a bit of an old-fashioned way to make figures because there is a new package called ggplot that is extremely flexible and powerful for making figures.  The notation is quite different from what I have described above for base R, but it is worth learning if you want to make all yoru figures in R.  For the purpose of this course base R will work fine.
